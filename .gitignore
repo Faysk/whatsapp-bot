@@ -1,21 +1,59 @@
-# Ignora envs reais e cache
+########################################
+# 🔒 Arquivos sensíveis e ambientes
+########################################
 .env
+.env.local
 *.log
 
-# Binários compilados
+########################################
+# 🔐 Banco de dados e sessões
+########################################
+session.db
+session.db-journal
+
+########################################
+# 🔊 Mídias geradas (áudios, etc)
+########################################
+media/
+
+########################################
+# 🔨 Binários compilados e builds
+########################################
 /bot
 *.exe
 *.out
-
-# Pasta de build (opcional)
+*.dll
+*.so
 dist/
+build/
 
-# Go cache
+########################################
+# 🧪 Arquivos de testes e cache do Go
+########################################
 *.test
-coverage.out
+coverage.*
+*.coverprofile
+*.prof
+bin/
+pkg/
 
-# IDEs e editores
+########################################
+# 🧠 Arquivos temporários de editores
+########################################
 .vscode/
 .idea/
 *.swp
+*.swo
 .DS_Store
+Thumbs.db
+
+########################################
+# 🐍 Scripts Python auxiliares (ex: edge-tts)
+########################################
+scripts/__pycache__/
+
+########################################
+# 📦 Dependências de outros ambientes
+########################################
+node_modules/
+venv/

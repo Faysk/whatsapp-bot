@@ -1,16 +1,21 @@
-# 🤖 WhatsApp Bot - Modular & Escalável com Go
+# 🤖 WhatsApp Bot - Modular, Inteligente e Escalável com Go
 
-Este projeto é um bot de WhatsApp totalmente modularizado usando [WhatsMeow](https://github.com/tulir/whatsmeow), com foco em arquitetura limpa, escalabilidade e facilidade de manutenção.
+Este é um bot de WhatsApp altamente modular e escalável, construído com [WhatsMeow](https://github.com/tulir/whatsmeow) e linguagem Go. Projetado para ser limpo, poderoso e pronto para crescer com integrações de IA, voz e serviços externos.
 
-## 🚀 Recursos
+---
 
-- ✅ Conexão persistente com WhatsApp via QR Code
-- 🧠 Respostas automáticas por comandos (`!ping`, `!help`, etc.)
-- 🧱 Arquitetura modular (comandos, eventos, config, serviços)
-- 📦 Configuração por `.env`
-- ⚙️ Script de instalação e preparação do ambiente (`setup.sh`)
-- 🗂️ Banco de dados local com SQLite
-- 🧩 Pronto para expandir com IA, APIs, Webhooks e mais
+## 🚀 Funcionalidades
+
+- ✅ Conexão persistente via QR Code com o WhatsApp
+- 💬 Respostas automáticas por comandos (ex: `!ping`, `!help`)
+- 🧱 Arquitetura limpa e modularizada (eventos, comandos, serviços)
+- 🧠 Integração com OpenAI GPT (mensagens com IA)
+- 🗣️ **Suporte a áudio com edge-tts (texto para voz)**
+- 🎙️ **Transcrição de áudios recebidos (Whisper)**
+- 📦 Configuração via `.env` com exemplo incluído
+- 🗂️ Banco de dados local via SQLite
+- 🛠️ Script de instalação automática (`setup.sh`)
+- 🔌 Fácil de integrar com Webhooks, APIs, CRON, etc.
 
 ---
 
@@ -18,31 +23,22 @@ Este projeto é um bot de WhatsApp totalmente modularizado usando [WhatsMeow](ht
 
 ```
 whatsapp-bot/
-├── cmd/               # Ponto de entrada da aplicação
-│   └── main.go
-├── config/            # Carregamento de variáveis de ambiente
-│   └── config.go
-├── store/             # Conexão com banco e cliente WhatsApp
-│   ├── db.go
-│   └── client.go
-├── events/            # Escuta de eventos e roteamento
-│   └── dispatcher.go
-├── handlers/          # Tratamento de comandos de mensagem
-│   ├── message.go
+├── cmd/             # Ponto de entrada
+├── config/          # Leitura do .env
+├── events/          # Dispatcher de eventos WhatsApp
+├── handlers/        # Comandos e mensagens
 │   └── commands/
-│       ├── ping.go
-│       ├── help.go
-│       └── bom_dia.go
-├── services/          # Funções auxiliares de envio/resposta
-│   └── whatsapp.go
-├── utils/             # Logger customizado e utilidades
-│   └── logger.go
-├── .env               # Arquivo de ambiente (não versionar)
-├── .env.example       # Exemplo de configuração
-├── .gitignore
-├── setup.sh           # Script automático de preparação
-├── go.mod
-├── go.sum
+├── services/        # Lógica de negócio (envio, IA, mídia)
+├── openai/          # ChatGPT e Whisper
+├── tts/             # Geração de voz com edge-tts
+├── scripts/         # Scripts Python auxiliares (TTS, etc.)
+├── store/           # Sessão WhatsApp e banco
+├── utils/           # Logger customizado
+├── media/           # Áudios gerados dinamicamente (.gitignored)
+├── authorized.json  # Lista de números autorizados (exemplo)
+├── .env.example     # Exemplo de configuração
+├── setup.sh         # Instalador automático
+├── go.mod / go.sum  # Dependências
 └── README.md
 ```
 
@@ -51,8 +47,10 @@ whatsapp-bot/
 ## 📦 Pré-requisitos
 
 - Go 1.20 ou superior → [https://go.dev/doc/install](https://go.dev/doc/install)
-- Git instalado (opcional)
-- Terminal com permissões de execução
+- Git instalado
+- Python 3.10+ (para recursos de áudio via edge-tts)
+- FFmpeg (para conversão de formatos de áudio, ex: `.opus`)
+- API Key da OpenAI (para GPT e Whisper)
 
 ---
 
@@ -66,10 +64,10 @@ chmod +x setup.sh
 ```
 
 Esse script irá:
-- Verificar o Go instalado
-- Inicializar `go.mod` (caso não exista)
-- Instalar e organizar dependências (`godotenv`, `whatsmeow`, `sqlite`)
-- Criar `.env` com base no `.env.example`
+- Validar e instalar dependências do Go
+- Configurar variáveis de ambiente
+- Instalar bibliotecas (`whatsmeow`, `godotenv`, `sqlite3`)
+- Preparar o ambiente com `.env` baseado no `.env.example`
 
 ---
 
@@ -77,20 +75,27 @@ Esse script irá:
 
 ```env
 DB_PATH=file:session.db?_pragma=foreign_keys(1)
-LOG_LEVEL=INFO
+LOG_LEVEL=DEBUG
+BOT_NAME=FayskBot
+PORT=8080
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o
+MAX_TOKENS=2000
+AUTHORIZED_NUMBERS=5511999999999,5511988888888
+RESTRICT_TO_GROUP=false
 ```
 
 ---
 
 ## ▶️ Como Rodar
 
-### Desenvolvimento
+### Modo desenvolvimento
 
 ```bash
 go run ./cmd
 ```
 
-### Produção
+### Modo produção
 
 ```bash
 go build -o bot
@@ -102,25 +107,44 @@ go build -o bot
 ## 💬 Comandos Suportados
 
 - `!ping` → Testa a resposta do bot
-- `!help` → Lista de comandos disponíveis
-- `bom dia` → Resposta automática especial
+- `!help` → Lista os comandos disponíveis
+- `bom dia` → Envia uma saudação especial
+- (Em breve) `!falar <texto>` → Gera áudio com voz IA
+- (Em breve) `!gpt <pergunta>` → Responde com GPT
+
+---
+
+## 🧠 Integrações de IA
+
+### ✅ GPT via OpenAI
+- Chat contextual por texto
+- Mensagens personalizadas
+
+### ✅ Whisper (áudio → texto)
+- Transcrição de mensagens de voz para texto
+- Multi-idioma (detectado automaticamente)
+
+### ✅ edge-tts (texto → voz)
+- Respostas faladas com voz neural da Microsoft
+- Idiomas e vozes configuráveis (ex: Aria, Guy, Ana, etc.)
 
 ---
 
 ## 📌 Possibilidades Futuras
 
-- [ ] Respostas com mídia (imagem, áudio, stickers)
-- [ ] Webhook para integração com serviços externos
-- [ ] Comandos com IA (ChatGPT, DALL·E, etc.)
-- [ ] Integração com banco PostgreSQL ou Redis
-- [ ] Controle de permissões (admin, grupos)
-- [ ] Sistema de agendamento de mensagens
+- [x] Gerar respostas em áudio automaticamente
+- [x] Transcrever áudios recebidos
+- [ ] Enviar imagens e stickers com IA
+- [ ] Suporte a comandos em grupos
+- [ ] Sistema de permissões (admin, whitelist, etc.)
+- [ ] Integração com agenda e lembretes (Google Calendar, CRON)
+- [ ] Dashboard web para gerenciar o bot
 
 ---
 
 ## 🤝 Contribuição
 
-Pull requests são bem-vindos! Para ideias maiores, abra uma issue para discussão antes.
+Pull requests são muito bem-vindos! Para funcionalidades maiores, abra uma issue primeiro para discutirmos juntos.
 
 ---
 
@@ -133,4 +157,5 @@ Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais inform
 ## 👤 Autor
 
 Desenvolvido por [Renan Silva (Faysk)](https://github.com/faysk)  
-Contato: faysk@protonmail.com
+📧 Contato: faysk@protonmail.com  
+🌐 Projetos: https://faysk.dev
