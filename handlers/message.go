@@ -16,7 +16,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// HandleCommand processa mensagens recebidas via WhatsApp
 func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID, text string, msg *events.Message) {
 	text = strings.TrimSpace(text)
 	lower := strings.ToLower(text)
@@ -42,31 +41,50 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		log.Printf("%s 🟢 Comando !ping de %s", logPrefix, sender)
 		commands.Ping(ctx, client, chat)
 		return
+
 	case "!help":
 		log.Printf("%s 📘 Comando !help de %s", logPrefix, sender)
 		commands.Help(ctx, client, chat)
 		return
-	case "!btc", "!bitcoin":
-		log.Printf("%s 💰 Comando !btc de %s", logPrefix, sender)
-		price, err := services.GetBitcoinPrice()
+
+	case "!cryptonews":
+		log.Printf("%s 📰 Comando !cryptonews de %s", logPrefix, sender)
+		news, err := services.GetCryptoNews()
+		if err != nil || news == "" {
+			msg := "⚠️ Não foi possível obter as notícias de criptomoedas no momento."
+			if err != nil {
+				msg += "\nDetalhes: " + err.Error()
+			}
+			services.SendReply(ctx, client, chat, msg)
+			return
+		}
+		services.SendReply(ctx, client, chat, news)
+		return
+	}
+
+	// 💱 Comando de Cripto (qualquer !moeda, ex: !btc, !sol)
+	if strings.HasPrefix(lower, "!") {
+		moeda := strings.TrimPrefix(lower, "!")
+		log.Printf("%s 💰 Comando de cripto '%s' de %s", logPrefix, moeda, sender)
+
+		price, err := services.GetCryptoPrice(moeda)
 		if err != nil {
-			price = "❌ Erro ao consultar o preço do Bitcoin: " + err.Error()
+			price = "❌ Erro ao consultar moeda: " + err.Error()
 		}
 		services.SendReply(ctx, client, chat, price)
 		return
 	}
 
-	// 🌞 Saudação
+	// 🌞 Saudações simples
 	if strings.Contains(lower, "bom dia") {
 		log.Printf("%s ☀️ Saudação detectada de %s", logPrefix, sender)
 		commands.BomDia(ctx, client, chat)
 		return
 	}
 
-	// 🤖 Interação com IA (requer palavra "renan")
+	// 🤖 IA: qualquer frase com "renan"
 	if config.AppConfig.EnableChatGPT && config.AppConfig.OpenAIKey != "" && strings.Contains(lower, "renan") {
 
-		// ➕ Adicionar número
 		if strings.Contains(lower, "adicione o número") {
 			num := extractPhoneNumber(lower)
 			if num == "" {
@@ -83,7 +101,6 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 			return
 		}
 
-		// ➖ Remover número
 		if strings.Contains(lower, "remova o número") {
 			num := extractPhoneNumber(lower)
 			if num == "" {
@@ -100,7 +117,6 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 			return
 		}
 
-		// 💬 Enviar para a IA
 		log.Printf("%s 🤖 Enviando mensagem para IA: \"%s\" de %s", logPrefix, text, sender)
 		reply, err := openai.AskChatGPT(text)
 		if err != nil {
@@ -111,11 +127,11 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		return
 	}
 
-	// ❌ Ignorado
+	// 🔇 Ignorado
 	log.Printf("%s ❌ Ignorado: \"%s\" de %s (sem comando nem palavra-chave)", logPrefix, text, sender)
 }
 
-// isAuthorized verifica se o número está na lista de autorizados
+// isAuthorized verifica se o número está autorizado
 func isAuthorized(sender string) bool {
 	for _, num := range config.AppConfig.AuthorizedNumbers {
 		if sender == num {
@@ -125,7 +141,7 @@ func isAuthorized(sender string) bool {
 	return false
 }
 
-// extractPhoneNumber tenta extrair o primeiro número brasileiro da string
+// extractPhoneNumber tenta extrair o primeiro número válido
 func extractPhoneNumber(text string) string {
 	words := strings.Fields(text)
 	for _, word := range words {

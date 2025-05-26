@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/faysk/whatsapp-bot/config"
 )
@@ -34,12 +35,15 @@ type ChatResponse struct {
 	} `json:"error"`
 }
 
-// AskChatGPT envia um prompt para o modelo da OpenAI definido no .env
 func AskChatGPT(prompt string) (string, error) {
+	if config.AppConfig.OpenAIKey == "" {
+		return "", fmt.Errorf("❌ OPENAI_API_KEY está vazia — verifique o .env ou config.Load()")
+	}
+
 	reqBody := ChatRequest{
 		Model: config.AppConfig.OpenAIModel,
 		Messages: []Message{
-			{Role: "system", Content: "Você é um assistente útil."},
+			{Role: "system", Content: "Você é um assistente tradutor de notícias cripto para português."},
 			{Role: "user", Content: prompt},
 		},
 		MaxTokens:   config.AppConfig.MaxTokens,
@@ -59,7 +63,7 @@ func AskChatGPT(prompt string) (string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+config.AppConfig.OpenAIKey)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("erro ao enviar requisição à OpenAI: %w", err)

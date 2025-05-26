@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/faysk/whatsapp-bot/config"
 	"go.mau.fi/whatsmeow"
@@ -14,21 +15,28 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// InitWhatsAppClient inicializa e retorna o cliente WhatsApp com sessão persistente
+const fallbackDSN = "file:session.db?_pragma=foreign_keys(1)&_journal_mode=WAL&_busy_timeout=5000"
+
+// InitWhatsAppClient inicializa o cliente do WhatsApp com sessão persistente via SQLite
 func InitWhatsAppClient(ctx context.Context) (*whatsmeow.Client, error) {
 	logger := waLog.Stdout(config.AppConfig.BotName, config.AppConfig.LogLevel, true)
 
-	db, err := sql.Open("sqlite", config.AppConfig.DatabasePath)
+	// 🛡️ Garante que o DSN tenha parâmetros mínimos de concorrência
+	dsn := sanitizeDSN(config.AppConfig.DatabasePath)
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("❌ Erro ao abrir banco SQLite: %w", err)
 	}
 
-	if pingErr := db.PingContext(ctx); pingErr != nil {
-		return nil, fmt.Errorf("❌ Falha ao conectar ao banco SQLite: %w", pingErr)
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("❌ Falha ao conectar ao SQLite: %w", err)
 	}
 
+	// 🔐 Cria o container de persistência
 	container := sqlstore.NewWithDB(db, "sqlite", logger)
 
+	// 📲 Obtém ou cria uma sessão
 	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		log.Println("⚠️ Nenhuma sessão ativa encontrada. Criando novo dispositivo...")
@@ -40,7 +48,7 @@ func InitWhatsAppClient(ctx context.Context) (*whatsmeow.Client, error) {
 	return client, nil
 }
 
-// ConnectWithQR conecta o cliente ao WhatsApp e lida com pareamento via QR Code
+// ConnectWithQR realiza a conexão ou mostra o QR Code caso não haja sessão
 func ConnectWithQR(ctx context.Context, client *whatsmeow.Client) error {
 	if client.Store.ID != nil {
 		log.Println("🔗 Reconectando com sessão existente...")
@@ -51,7 +59,7 @@ func ConnectWithQR(ctx context.Context, client *whatsmeow.Client) error {
 
 	qrChan, _ := client.GetQRChannel(ctx)
 	if err := client.Connect(); err != nil {
-		return fmt.Errorf("falha ao conectar: %w", err)
+		return fmt.Errorf("❌ Falha ao conectar: %w", err)
 	}
 
 	for evt := range qrChan {
@@ -70,4 +78,13 @@ func ConnectWithQR(ctx context.Context, client *whatsmeow.Client) error {
 	}
 
 	return nil
+}
+
+// sanitizeDSN garante que o DSN tenha os parâmetros essenciais de concorrência
+func sanitizeDSN(dsn string) string {
+	if strings.Contains(dsn, "_journal_mode") && strings.Contains(dsn, "_busy_timeout") {
+		return dsn
+	}
+	log.Println("⚠️ DSN incompleto no .env — aplicando padrão seguro para concorrência (WAL + timeout)")
+	return fallbackDSN
 }

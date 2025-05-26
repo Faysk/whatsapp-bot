@@ -8,7 +8,7 @@ import (
 	waTypes "go.mau.fi/whatsmeow/types"
 )
 
-// Ping responde com "pong ⚡"
+// Ping responde com "Pong!"
 func Ping(ctx context.Context, client *whatsmeow.Client, chat waTypes.JID) {
-	services.SendReply(ctx, client, chat, "pong ⚡")
+	services.SendReply(ctx, client, chat, "🏓 Pong!")
 }
