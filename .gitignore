@@ -1,0 +1,21 @@
+# Ignora envs reais e cache
+.env
+*.log
+
+# Binários compilados
+/bot
+*.exe
+*.out
+
+# Pasta de build (opcional)
+dist/
+
+# Go cache
+*.test
+coverage.out
+
+# IDEs e editores
+.vscode/
+.idea/
+*.swp
+.DS_Store
