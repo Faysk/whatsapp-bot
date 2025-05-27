@@ -9,8 +9,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config representa todas as configurações carregadas do .env e fontes externas.
+//
+// ========== 🔧 Estrutura =========
+//
+
+// Config representa todas as configurações carregadas do .env
 type Config struct {
+	DatabaseDriver     string
 	DatabasePath       string
 	LogLevel           string
 	Port               string
@@ -22,20 +27,27 @@ type Config struct {
 	MaxTokens          int
 	Temperature        float64
 	RestrictToGroup    bool
-	FixedAuthorizedEnv []string // Números definidos via .env (imutáveis)
-	AuthorizedNumbers  []string // Lista combinada final (fixos + dinâmicos)
+	FixedAuthorizedEnv []string
+	AuthorizedNumbers  []string
 }
 
-// AppConfig é a instância global utilizada pela aplicação.
+// AppConfig é a instância global acessada pelo projeto
 var AppConfig Config
 
-// Load carrega as configurações do .env e define a estrutura base.
-func Load() {
-	_ = godotenv.Load()
+//
+// ========== 🚀 Carregamento =========
+//
 
-	envFixed := parseCSVEnv("AUTHORIZED_NUMBERS")
+// Load carrega as variáveis do .env e preenche o AppConfig
+func Load() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("❌ Erro ao carregar .env: %v", err)
+	}
+
+	fixedNumbers := parseCSVEnv("AUTHORIZED_NUMBERS")
 
 	AppConfig = Config{
+		DatabaseDriver:     getEnv("DB_DRIVER", "sqlite"),
 		DatabasePath:       getEnv("DB_PATH", "file:session.db?_pragma=foreign_keys(1)"),
 		LogLevel:           getEnv("LOG_LEVEL", "INFO"),
 		Port:               getEnv("PORT", "8080"),
@@ -47,21 +59,27 @@ func Load() {
 		MaxTokens:          getInt("MAX_TOKENS", 400),
 		Temperature:        getFloat("TEMPERATURE", 0.7),
 		RestrictToGroup:    getBool("RESTRICT_TO_GROUP", false),
-		FixedAuthorizedEnv: envFixed,
-		AuthorizedNumbers:  append([]string{}, envFixed...), // Começa com os fixos
+		FixedAuthorizedEnv: fixedNumbers,
+		AuthorizedNumbers:  append([]string{}, fixedNumbers...),
 	}
 
+	printLoadedConfig()
+}
+
+// printLoadedConfig exibe todas as configurações carregadas
+func printLoadedConfig() {
 	log.Println("📦 Configurações carregadas:")
-	log.Printf("  ├─ DB_PATH: %s", AppConfig.DatabasePath)
-	log.Printf("  ├─ LOG_LEVEL: %s", AppConfig.LogLevel)
-	log.Printf("  ├─ PORT: %s", AppConfig.Port)
-	log.Printf("  ├─ BOT_NAME: %s", AppConfig.BotName)
-	log.Printf("  ├─ LANG: %s", AppConfig.Language)
-	log.Printf("  ├─ OPENAI_MODEL: %s", AppConfig.OpenAIModel)
-	log.Printf("  ├─ MAX_TOKENS: %d", AppConfig.MaxTokens)
-	log.Printf("  ├─ TEMPERATURE: %.2f", AppConfig.Temperature)
-	log.Printf("  ├─ RESTRICT_TO_GROUP: %v", AppConfig.RestrictToGroup)
-	log.Printf("  ├─ FIXED NUMBERS: %v", AppConfig.FixedAuthorizedEnv)
+	log.Printf("  ├─ DB_DRIVER:          %s", AppConfig.DatabaseDriver)
+	log.Printf("  ├─ DB_PATH:            %s", AppConfig.DatabasePath)
+	log.Printf("  ├─ LOG_LEVEL:          %s", AppConfig.LogLevel)
+	log.Printf("  ├─ PORT:               %s", AppConfig.Port)
+	log.Printf("  ├─ BOT_NAME:           %s", AppConfig.BotName)
+	log.Printf("  ├─ LANG:               %s", AppConfig.Language)
+	log.Printf("  ├─ OPENAI_MODEL:       %s", AppConfig.OpenAIModel)
+	log.Printf("  ├─ MAX_TOKENS:         %d", AppConfig.MaxTokens)
+	log.Printf("  ├─ TEMPERATURE:        %.2f", AppConfig.Temperature)
+	log.Printf("  ├─ RESTRICT_TO_GROUP:  %v", AppConfig.RestrictToGroup)
+	log.Printf("  ├─ FIXED NUMBERS:      %v", AppConfig.FixedAuthorizedEnv)
 
 	if AppConfig.OpenAIKey != "" && AppConfig.EnableChatGPT {
 		log.Println("  └─ IA: ✅ habilitada (ChatGPT ativo)")
@@ -72,7 +90,11 @@ func Load() {
 	}
 }
 
-// AddDynamicAuthorizedNumbers adiciona números dinâmicos à lista final, sem sobrescrever fixos.
+//
+// ========== ➕ Autorização dinâmica =========
+//
+
+// AddDynamicAuthorizedNumbers adiciona números dinâmicos à lista final, sem duplicar os fixos
 func AddDynamicAuthorizedNumbers(dynamic []string) {
 	for _, n := range dynamic {
 		if !contains(AppConfig.FixedAuthorizedEnv, n) && !contains(AppConfig.AuthorizedNumbers, n) {
@@ -82,10 +104,9 @@ func AddDynamicAuthorizedNumbers(dynamic []string) {
 }
 
 //
-// === Funções auxiliares ===
+// ========== 🧰 Utilitários =========
 //
 
-// getEnv retorna o valor de uma variável de ambiente ou o valor padrão.
 func getEnv(key, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
 		return val

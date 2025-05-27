@@ -25,7 +25,6 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 	isGroup := msg.Info.IsGroup
 	chat := msg.Info.Chat
 
-	// 🔒 Restrições
 	if config.AppConfig.RestrictToGroup && !isGroup {
 		log.Printf("%s 🚫 Ignorando mensagem privada (RESTRICT_TO_GROUP=true)", logPrefix)
 		return
@@ -35,21 +34,18 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		return
 	}
 
-	// ✅ Comandos diretos
 	switch lower {
 	case "!ping":
 		log.Printf("%s 🟢 Comando !ping de %s", logPrefix, sender)
 		commands.Ping(ctx, client, chat)
 		return
-
 	case "!help":
 		log.Printf("%s 📘 Comando !help de %s", logPrefix, sender)
 		commands.Help(ctx, client, chat)
 		return
-
 	case "!cryptonews":
 		log.Printf("%s 📰 Comando !cryptonews de %s", logPrefix, sender)
-		news, err := services.GetCryptoNews()
+		news, _, err := services.GetCryptoNews()
 		if err != nil || news == "" {
 			msg := "⚠️ Não foi possível obter as notícias de criptomoedas no momento."
 			if err != nil {
@@ -62,7 +58,6 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		return
 	}
 
-	// 💱 Comando de Cripto (qualquer !moeda, ex: !btc, !sol)
 	if strings.HasPrefix(lower, "!") {
 		moeda := strings.TrimPrefix(lower, "!")
 		log.Printf("%s 💰 Comando de cripto '%s' de %s", logPrefix, moeda, sender)
@@ -75,18 +70,15 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		return
 	}
 
-	// 🌞 Saudações simples
 	if strings.Contains(lower, "bom dia") {
 		log.Printf("%s ☀️ Saudação detectada de %s", logPrefix, sender)
 		commands.BomDia(ctx, client, chat)
 		return
 	}
 
-	// 🤖 IA: qualquer frase com "renan"
 	if config.AppConfig.EnableChatGPT && config.AppConfig.OpenAIKey != "" && strings.Contains(lower, "renan") {
-
-		if strings.Contains(lower, "adicione o número") {
-			num := extractPhoneNumber(lower)
+		if containsAny(lower, []string{"adicione o numero", "adicionar o numero", "adiciona o numero", "adicione o número", "adicionar o número", "adiciona o número"}) {
+			num := extractPhoneNumber(text)
 			if num == "" {
 				services.SendReply(ctx, client, chat, "⚠️ Nenhum número válido encontrado.")
 				return
@@ -101,8 +93,8 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 			return
 		}
 
-		if strings.Contains(lower, "remova o número") {
-			num := extractPhoneNumber(lower)
+		if containsAny(lower, []string{"remova o numero", "remover o numero", "remove o numero", "remova o número", "remover o número", "remove o número"}) {
+			num := extractPhoneNumber(text)
 			if num == "" {
 				services.SendReply(ctx, client, chat, "⚠️ Nenhum número válido encontrado.")
 				return
@@ -127,11 +119,9 @@ func HandleCommand(ctx context.Context, client *whatsmeow.Client, _ waTypes.JID,
 		return
 	}
 
-	// 🔇 Ignorado
 	log.Printf("%s ❌ Ignorado: \"%s\" de %s (sem comando nem palavra-chave)", logPrefix, text, sender)
 }
 
-// isAuthorized verifica se o número está autorizado
 func isAuthorized(sender string) bool {
 	for _, num := range config.AppConfig.AuthorizedNumbers {
 		if sender == num {
@@ -141,14 +131,51 @@ func isAuthorized(sender string) bool {
 	return false
 }
 
-// extractPhoneNumber tenta extrair o primeiro número válido
 func extractPhoneNumber(text string) string {
-	words := strings.Fields(text)
+	replacer := strings.NewReplacer("-", "", "(", "", ")", "", ".", "", ",", "", " ", "")
+	normalized := replacer.Replace(text)
+
+	// Encontra palavras com apenas números e tamanho válido
+	words := strings.Fields(normalized)
 	for _, word := range words {
-		clean := strings.Trim(word, ",. ")
-		if strings.HasPrefix(clean, "55") && len(clean) >= 11 {
+		clean := strings.Trim(word, ".,:;")
+		if isNumeric(clean) && len(clean) >= 11 && len(clean) <= 15 {
 			return clean
 		}
 	}
+
+	// Busca sequência contínua numérica na frase toda
+	var current string
+	for _, r := range normalized {
+		if r >= '0' && r <= '9' {
+			current += string(r)
+		} else if len(current) >= 11 && len(current) <= 15 {
+			return current
+		} else {
+			current = ""
+		}
+	}
+	if len(current) >= 11 && len(current) <= 15 {
+		return current
+	}
+
 	return ""
+}
+
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAny(text string, options []string) bool {
+	for _, opt := range options {
+		if strings.Contains(text, opt) {
+			return true
+		}
+	}
+	return false
 }

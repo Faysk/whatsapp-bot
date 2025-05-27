@@ -10,6 +10,8 @@
 ########################################
 session.db
 session.db-journal
+*.sqlite
+*.sqlite3
 
 ########################################
 # 🔊 Mídias geradas (áudios, etc)

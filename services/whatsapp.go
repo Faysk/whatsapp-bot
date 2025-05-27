@@ -7,36 +7,50 @@ import (
 	"log"
 	"strings"
 
+	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
 	"github.com/faysk/whatsapp-bot/config"
+	"github.com/faysk/whatsapp-bot/store"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
 
 const fallbackDSN = "file:session.db?_pragma=foreign_keys(1)&_journal_mode=WAL&_busy_timeout=5000"
 
-// InitWhatsAppClient inicializa o cliente do WhatsApp com sessão persistente via SQLite
+// InitWhatsAppClient inicializa o cliente do WhatsApp com sessão persistente (PostgreSQL ou SQLite)
 func InitWhatsAppClient(ctx context.Context) (*whatsmeow.Client, error) {
 	logger := waLog.Stdout(config.AppConfig.BotName, config.AppConfig.LogLevel, true)
 
-	// 🛡️ Garante que o DSN tenha parâmetros mínimos de concorrência
-	dsn := sanitizeDSN(config.AppConfig.DatabasePath)
+	driver := strings.ToLower(config.AppConfig.DatabaseDriver)
+	dsn := config.AppConfig.DatabasePath
 
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("❌ Erro ao abrir banco SQLite: %w", err)
+	var container *sqlstore.Container
+	var err error
+
+	switch driver {
+	case "postgres", "postgresql":
+		var db *sql.DB
+		db, err = store.ConnectPostgres(dsn)
+		if err != nil {
+			return nil, fmt.Errorf("❌ Erro ao conectar com PostgreSQL: %w", err)
+		}
+		container = sqlstore.NewWithDB(db, "postgres", logger)
+	default:
+		dsn = sanitizeDSN(dsn)
+		var db *sql.DB
+		db, err = sql.Open("sqlite", dsn)
+		if err != nil {
+			return nil, fmt.Errorf("❌ Erro ao abrir banco SQLite: %w", err)
+		}
+		if err := db.PingContext(ctx); err != nil {
+			return nil, fmt.Errorf("❌ Falha ao conectar ao SQLite: %w", err)
+		}
+		container = sqlstore.NewWithDB(db, "sqlite", logger)
 	}
 
-	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("❌ Falha ao conectar ao SQLite: %w", err)
-	}
-
-	// 🔐 Cria o container de persistência
-	container := sqlstore.NewWithDB(db, "sqlite", logger)
-
-	// 📲 Obtém ou cria uma sessão
 	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		log.Println("⚠️ Nenhuma sessão ativa encontrada. Criando novo dispositivo...")
@@ -66,7 +80,8 @@ func ConnectWithQR(ctx context.Context, client *whatsmeow.Client) error {
 		switch evt.Event {
 		case "code":
 			fmt.Println("📷 Escaneie o QR abaixo para parear:")
-			fmt.Println(evt.Code)
+			qr := qrcodeTerminal.New()
+			qr.Get(evt.Code).Print()
 		case "success":
 			log.Println("✅ QR Code escaneado com sucesso!")
 			return nil

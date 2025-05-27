@@ -4,31 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
 
-type coinInfo struct {
-	ID     string `json:"id"`
-	Symbol string `json:"symbol"`
-	Name   string `json:"name"`
-}
-
-type CoinData struct {
-	ID     string
-	Name   string
-	Symbol string
-}
-
-var (
-	cryptoAliases = make(map[string]string)   // alias → id
-	cryptoInfoMap = make(map[string]CoinData) // id → CoinData
-	client        = &http.Client{Timeout: 10 * time.Second}
-)
-
-// init carrega as moedas e gera os mapas de aliases automaticamente
+// init carrega os dados das moedas e configura os aliases dinâmicos
 func init() {
+	// Carrega aliases fixos do arquivo crypto_aliases.go
+	for alias, id := range PredefinedAliases {
+		cryptoAliases[alias] = id
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get("https://api.coingecko.com/api/v3/coins/list")
 	if err != nil {
 		fmt.Println("⚠️ Erro ao consultar CoinGecko:", err)
@@ -36,7 +23,12 @@ func init() {
 	}
 	defer resp.Body.Close()
 
-	var coins []coinInfo
+	var coins []struct {
+		ID     string `json:"id"`
+		Symbol string `json:"symbol"`
+		Name   string `json:"name"`
+	}
+
 	if err := json.NewDecoder(resp.Body).Decode(&coins); err != nil {
 		fmt.Println("⚠️ Erro ao decodificar moedas:", err)
 		return
@@ -53,55 +45,16 @@ func init() {
 			Symbol: strings.ToUpper(coin.Symbol),
 		}
 
-		// Vários aliases para facilitar comandos
-		cryptoAliases[id] = id
-		cryptoAliases[symbol] = id
-		cryptoAliases[name] = id
-		cryptoAliases[strings.ReplaceAll(name, " ", "")] = id
+		addAliasIfAbsent(id, id)
+		addAliasIfAbsent(symbol, id)
+		addAliasIfAbsent(name, id)
+		addAliasIfAbsent(strings.ReplaceAll(name, " ", ""), id)
 	}
 }
 
-// GetCryptoPrice retorna o preço formatado de qualquer cripto em BRL e USD
-func GetCryptoPrice(input string) (string, error) {
-	alias := strings.ToLower(strings.TrimSpace(input))
-	cryptoID, ok := cryptoAliases[alias]
-	if !ok {
-		return "", fmt.Errorf("❌ Criptomoeda '%s' não reconhecida", input)
+// addAliasIfAbsent adiciona o alias somente se ainda não existir
+func addAliasIfAbsent(alias, id string) {
+	if _, exists := cryptoAliases[alias]; !exists {
+		cryptoAliases[alias] = id
 	}
-
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=brl,usd", cryptoID)
-	resp, err := client.Get(url)
-	if err != nil {
-		return "", fmt.Errorf("🌐 Erro ao acessar CoinGecko: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("❌ CoinGecko retornou status %d", resp.StatusCode)
-	}
-
-	var data map[string]map[string]float64
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", fmt.Errorf("📦 Erro ao processar dados: %w", err)
-	}
-
-	prices, ok := data[cryptoID]
-	if !ok {
-		return "", fmt.Errorf("⚠️ Criptomoeda '%s' não encontrada", cryptoID)
-	}
-
-	coin := cryptoInfoMap[cryptoID]
-
-	return fmt.Sprintf(
-		"💰 *%s (%s)*\n🇧🇷 R$ %s\n🇺🇸 $ %s",
-		coin.Name,
-		coin.Symbol,
-		formatFloat(prices["brl"]),
-		formatFloat(prices["usd"]),
-	), nil
-}
-
-// formatFloat retorna valor com separador decimal padronizado
-func formatFloat(val float64) string {
-	return strconv.FormatFloat(val, 'f', 2, 64)
 }
