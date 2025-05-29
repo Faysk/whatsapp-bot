@@ -13,6 +13,7 @@ import (
 	"github.com/faysk/whatsapp-bot/services"
 	"github.com/faysk/whatsapp-bot/store"
 	"github.com/faysk/whatsapp-bot/utils"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func main() {
@@ -24,33 +25,41 @@ func main() {
 	// 🔧 Carrega configurações do .env e popula AppConfig
 	config.Load()
 
-	// 🔐 Carrega números autorizados dinâmicos (JSON)
+	// 🔐 Carrega números autorizados dinâmicos do arquivo JSON
 	dynamic := store.LoadAuthorizedNumbers()
 	config.AddDynamicAuthorizedNumbers(dynamic)
 
-	// 🌐 Cria contexto principal para uso compartilhado
+	// 🌐 Cria contexto principal
 	ctx := context.Background()
 
-	// 📲 Inicializa cliente WhatsApp com persistência no banco
+	// 📲 Inicializa cliente WhatsApp
 	client, err := services.InitWhatsAppClient(ctx)
 	if err != nil {
 		log.Fatalf("❌ Falha ao inicializar o cliente WhatsApp: %v", err)
 	}
 
-	// 🔗 Conecta com sessão existente ou via QR Code
+	// 🔗 Conecta usando sessão persistida ou QR
 	if err := services.ConnectWithQR(ctx, client); err != nil {
-		log.Fatalf("❌ Erro na conexão com WhatsApp: %v", err)
+		log.Fatalf("❌ Erro ao conectar com WhatsApp: %v", err)
 	}
 
 	log.Println("✅ Bot conectado com sucesso. Aguardando mensagens...")
 
-	// 🗞️ Agendador de notícias cripto (diário às 10h)
+	// 🗞️ Agendador de notícias diárias sobre criptomoedas
 	scheduler.StartDailyNews(ctx, client, config.AppConfig.AuthorizedNumbers)
 
-	// 📩 Listener de eventos WhatsApp (mensagens recebidas)
+	// 🚨 Inicia o monitor de recordes de criptoativos (ATH)
+	services.MonitorCryptos(func(msg string) {
+		for _, number := range config.AppConfig.AuthorizedNumbers {
+			jid := types.NewJID(number, "s.whatsapp.net")
+			services.SendReply(ctx, client, jid, msg)
+		}
+	})
+
+	// 📩 Escuta eventos do WhatsApp
 	events.Listen(ctx, client)
 
-	// ⛔ Finalização segura com Ctrl+C ou SIGTERM
+	// ⛔ Espera sinal de encerramento (Ctrl+C ou SIGTERM)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
