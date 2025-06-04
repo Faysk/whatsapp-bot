@@ -30,8 +30,7 @@ whatsapp-bot/
 │   └── commands/     # Comandos como !ping, !help, etc.
 ├── services/         # Lógica de negócio (envio, IA, TTS)
 ├── openai/           # Integração com ChatGPT
-├── tts/              # Integração com edge-tts
-├── scripts/          # Scripts auxiliares (áudio, transcrição)
+├── scheduler/        # Tarefas agendadas (cron)
 ├── store/            # Persistência (auth, DB, sessions)
 ├── utils/            # Logger e utilitários
 ├── media/            # Áudios e arquivos temporários (.gitignored)
