@@ -3,21 +3,24 @@ package services
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
 // formatNumberBR formata número no estilo brasileiro (1.000.000,00)
 func formatNumberBR(val float64) string {
-	intPart := int64(val)
-	decimal := int64((val - float64(intPart)) * 100)
+	rounded := math.Round(val*100) / 100
+	intPart := int64(rounded)
+	decimal := int64(math.Round((rounded - float64(intPart)) * 100))
 	intStr := formatWithSeparator(intPart, ".")
 	return fmt.Sprintf("%s,%02d", intStr, decimal)
 }
 
 // formatNumberUS formata número no estilo americano (1,000,000.00)
 func formatNumberUS(val float64) string {
-	intPart := int64(val)
-	decimal := int64((val - float64(intPart)) * 100)
+	rounded := math.Round(val*100) / 100
+	intPart := int64(rounded)
+	decimal := int64(math.Round((rounded - float64(intPart)) * 100))
 	intStr := formatWithSeparator(intPart, ",")
 	return fmt.Sprintf("%s.%02d", intStr, decimal)
 }

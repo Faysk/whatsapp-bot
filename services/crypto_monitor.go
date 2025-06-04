@@ -40,11 +40,6 @@ func MonitorCryptos(sendAlert func(string)) {
 					continue
 				}
 
-				if resp == nil {
-					log.Printf("❌ %s: resposta vazia da CoinGecko", symbol)
-					continue
-				}
-
 				if resp.StatusCode != http.StatusOK {
 					log.Printf("❌ %s: CoinGecko retornou status %d", symbol, resp.StatusCode)
 					resp.Body.Close()
