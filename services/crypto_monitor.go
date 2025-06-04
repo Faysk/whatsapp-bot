@@ -39,10 +39,10 @@ func MonitorCryptos(sendAlert func(string)) {
 					log.Printf("❌ %s: erro HTTP ao acessar CoinGecko: %v", symbol, err)
 					continue
 				}
-				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
 					log.Printf("❌ %s: CoinGecko retornou status %d", symbol, resp.StatusCode)
+					resp.Body.Close()
 					continue
 				}
 
@@ -55,8 +55,10 @@ func MonitorCryptos(sendAlert func(string)) {
 
 				if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 					log.Printf("❌ %s: erro ao decodificar resposta: %v", symbol, err)
+					resp.Body.Close()
 					continue
 				}
+				resp.Body.Close()
 
 				current := data.MarketData.CurrentPrice["usd"]
 				ath := data.MarketData.ATH["usd"]
