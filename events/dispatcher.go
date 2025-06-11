@@ -7,7 +7,6 @@ import (
 	"github.com/faysk/whatsapp-bot/handlers"
 	"go.mau.fi/whatsmeow"
 	waEvents "go.mau.fi/whatsmeow/types/events"
-	waTypes "go.mau.fi/whatsmeow/types"
 )
 
 // Listen registra os listeners de eventos no cliente WhatsApp
