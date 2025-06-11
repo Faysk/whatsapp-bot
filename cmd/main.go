@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -17,38 +18,25 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatalf("🔥 Pânico recuperado: %v", r)
+		}
+	}()
+
 	log.Println("🚀 Iniciando o bot WhatsApp...")
-
-	// 📝 Inicializa logger (timestamp + cores)
 	utils.SetupLogger()
-
-	// 🔧 Carrega configurações do .env e popula AppConfig
-	config.Load()
-
-	// 🔐 Carrega números autorizados dinâmicos do arquivo JSON
-	dynamic := store.LoadAuthorizedNumbers()
-	config.AddDynamicAuthorizedNumbers(dynamic)
-
-	// 🌐 Cria contexto principal
 	ctx := context.Background()
 
-	// 📲 Inicializa cliente WhatsApp
-	client, err := services.InitWhatsAppClient(ctx)
+	client, err := startBot(ctx)
 	if err != nil {
-		log.Fatalf("❌ Falha ao inicializar o cliente WhatsApp: %v", err)
-	}
-
-	// 🔗 Conecta usando sessão persistida ou QR
-	if err := services.ConnectWithQR(ctx, client); err != nil {
-		log.Fatalf("❌ Erro ao conectar com WhatsApp: %v", err)
+		log.Fatalf("❌ Erro crítico: %v", err)
 	}
 
 	log.Println("✅ Bot conectado com sucesso. Aguardando mensagens...")
 
-	// 🗞️ Agendador de notícias diárias sobre criptomoedas
 	scheduler.StartDailyNews(ctx, client, config.AppConfig.AuthorizedNumbers)
 
-	// 🚨 Inicia o monitor de recordes de criptoativos (ATH)
 	services.MonitorCryptos(func(msg string) {
 		for _, number := range config.AppConfig.AuthorizedNumbers {
 			jid := types.NewJID(number, "s.whatsapp.net")
@@ -56,14 +44,32 @@ func main() {
 		}
 	})
 
-	// 📩 Escuta eventos do WhatsApp
 	events.Listen(ctx, client)
 
-	// ⛔ Espera sinal de encerramento (Ctrl+C ou SIGTERM)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
 	log.Println("📴 Encerrando conexão com o WhatsApp...")
-	client.Disconnect()
+	if client.IsConnected() {
+		client.Disconnect()
+	}
+}
+
+func startBot(ctx context.Context) (*services.WhatsAppClient, error) {
+	config.Load()
+
+	dynamic := store.LoadAuthorizedNumbers()
+	config.AddDynamicAuthorizedNumbers(dynamic)
+
+	client, err := services.InitWhatsAppClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao iniciar cliente WhatsApp: %w", err)
+	}
+
+	if err := services.ConnectWithQR(ctx, client); err != nil {
+		return nil, fmt.Errorf("erro ao conectar com QR: %w", err)
+	}
+
+	return client, nil
 }

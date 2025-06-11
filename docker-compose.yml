@@ -1,0 +1,83 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    image: faysk/whatsapp-db:latest
+    container_name: whatsapp-db
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql/data:rw
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h db -q"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    networks:
+      - backend
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GO_ENV: production
+    image: faysk/whatsapp-bot:latest
+    container_name: whatsapp-bot
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure:5
+    environment:
+      DB_PATH: ${DB_PATH}
+      PORT: ${PORT}
+      HTTP_HEALTH_ENDPOINT: ${HTTP_HEALTH_ENDPOINT:-/health}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT}${HTTP_HEALTH_ENDPOINT:-/health} || exit 1"]
+      interval: 20s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    networks:
+      - backend
+
+volumes:
+  db_data:
+
+networks:
+  backend:
+    driver: bridge

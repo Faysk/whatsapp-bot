@@ -20,6 +20,11 @@ func StartDailyNews(ctx context.Context, client *whatsmeow.Client, numbers []str
 	s := gocron.NewScheduler(time.Local)
 
 	_, err := s.Every(1).Day().At("10:00").Tag("daily-crypto-news").Do(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("⚠️ Panic recuperado no job de notícias: %v", r)
+			}
+		}()
 		sendCryptoNews(ctx, client, numbers)
 	})
 
@@ -28,13 +33,14 @@ func StartDailyNews(ctx context.Context, client *whatsmeow.Client, numbers []str
 		return
 	}
 
-	log.Println("🗞️ Agendador de notícias cripto ativado (todos os dias às 10h)")
+	log.Println("📅 Agendador de notícias cripto ativado — todos os dias às 10h")
 	s.StartAsync()
 }
 
 // sendCryptoNews busca e envia as últimas atualizações de criptomoedas em dois blocos (Trending + News)
 func sendCryptoNews(ctx context.Context, client *whatsmeow.Client, numbers []string) {
-	log.Println("📡 Iniciando coleta de notícias do CryptoPanic...")
+	now := time.Now().Format("2006-01-02 15:04:05")
+	log.Printf("📡 [%s] Iniciando coleta de notícias do CryptoPanic...", now)
 
 	trendingMsg, newsMsg, err := services.GetCryptoNews()
 	if err != nil {
@@ -47,7 +53,7 @@ func sendCryptoNews(ctx context.Context, client *whatsmeow.Client, numbers []str
 		return
 	}
 
-	log.Printf("📦 Notícias prontas para envio: Trending (%d caracteres), News (%d caracteres)",
+	log.Printf("📦 Notícias prontas: Trending (%d caracteres), News (%d caracteres)",
 		len(trendingMsg), len(newsMsg),
 	)
 
@@ -59,7 +65,7 @@ func sendCryptoNews(ctx context.Context, client *whatsmeow.Client, numbers []str
 		if trendingMsg != "" {
 			log.Printf("📤 Enviando 🔥 *Tópicos em Alta* para %s", number)
 			services.SendToNumber(ctx, client, number, trendingMsg)
-			time.Sleep(2 * time.Second) // Delay para evitar truncamento
+			time.Sleep(2 * time.Second)
 		}
 
 		if newsMsg != "" {
@@ -69,5 +75,5 @@ func sendCryptoNews(ctx context.Context, client *whatsmeow.Client, numbers []str
 		}
 	}
 
-	log.Println("✅ Todas as notícias cripto foram enviadas com sucesso.")
+	log.Printf("✅ [%s] Notícias cripto enviadas com sucesso.", now)
 }

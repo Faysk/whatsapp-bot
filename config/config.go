@@ -16,7 +16,7 @@ import (
 // Config representa todas as configurações carregadas do .env
 type Config struct {
 	DatabaseDriver     string
-	DatabasePath       string
+	DatabaseDSN        string
 	LogLevel           string
 	Port               string
 	OpenAIKey          string
@@ -40,15 +40,19 @@ var AppConfig Config
 
 // Load carrega as variáveis do .env e preenche o AppConfig
 func Load() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("❌ Erro ao carregar .env: %v", err)
+	env := os.Getenv("APP_ENV")
+	envFile := ".env"
+	if env != "" {
+		envFile = ".env." + env
 	}
 
-	fixedNumbers := parseCSVEnv("AUTHORIZED_NUMBERS")
+	if err := godotenv.Load(envFile); err != nil {
+		log.Printf("⚠️ Arquivo %s não encontrado. Usando variáveis do ambiente...", envFile)
+	}
 
 	AppConfig = Config{
-		DatabaseDriver:     getEnv("DB_DRIVER", "sqlite"),
-		DatabasePath:       getEnv("DB_PATH", "file:session.db?_pragma=foreign_keys(1)"),
+		DatabaseDriver:     getEnv("DATABASE_DRIVER", "postgres"),
+		DatabaseDSN:        getEnv("DATABASE_DSN", "postgres://user:pass@localhost:5432/whatsapp-bot?sslmode=disable"),
 		LogLevel:           getEnv("LOG_LEVEL", "INFO"),
 		Port:               getEnv("PORT", "8080"),
 		OpenAIKey:          getEnv("OPENAI_API_KEY", ""),
@@ -59,18 +63,27 @@ func Load() {
 		MaxTokens:          getInt("MAX_TOKENS", 400),
 		Temperature:        getFloat("TEMPERATURE", 0.7),
 		RestrictToGroup:    getBool("RESTRICT_TO_GROUP", false),
-		FixedAuthorizedEnv: fixedNumbers,
-		AuthorizedNumbers:  append([]string{}, fixedNumbers...),
+		FixedAuthorizedEnv: parseCSVEnv("AUTHORIZED_NUMBERS"),
+		AuthorizedNumbers:  []string{},
+	}
+
+	AppConfig.AuthorizedNumbers = append(AppConfig.AuthorizedNumbers, AppConfig.FixedAuthorizedEnv...)
+
+	if AppConfig.OpenAIKey == "" && AppConfig.EnableChatGPT {
+		log.Fatal("❌ OPENAI_API_KEY está ausente, mas IA está ativada. Verifique .env")
 	}
 
 	printLoadedConfig()
 }
 
-// printLoadedConfig exibe todas as configurações carregadas
+//
+// ========== 🖨️ Impressão =========
+//
+
 func printLoadedConfig() {
 	log.Println("📦 Configurações carregadas:")
 	log.Printf("  ├─ DB_DRIVER:          %s", AppConfig.DatabaseDriver)
-	log.Printf("  ├─ DB_PATH:            %s", AppConfig.DatabasePath)
+	log.Printf("  ├─ DB_PATH:            %s", AppConfig.DatabaseDSN)
 	log.Printf("  ├─ LOG_LEVEL:          %s", AppConfig.LogLevel)
 	log.Printf("  ├─ PORT:               %s", AppConfig.Port)
 	log.Printf("  ├─ BOT_NAME:           %s", AppConfig.BotName)

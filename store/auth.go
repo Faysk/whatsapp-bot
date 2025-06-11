@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 )
 
 const authorizedPath = "authorized.json"
+var phoneRegex = regexp.MustCompile(`^55\d{10,11}$`)
 
 // LoadAuthorizedNumbers carrega os números do JSON e mescla com os fixos do .env
 func LoadAuthorizedNumbers() []string {
@@ -54,11 +56,18 @@ func SaveAuthorizedNumbers(all []string) error {
 func AddAuthorized(num string) error {
 	num = strings.TrimSpace(num)
 	if num == "" || IsFixed(num) {
+		log.Printf("⚠️ Número %s ignorado (vazio ou fixo).", num)
+		return nil
+	}
+
+	if !isValidPhone(num) {
+		log.Printf("⚠️ Número inválido ignorado: %s", num)
 		return nil
 	}
 
 	list := LoadAuthorizedNumbers()
 	if contains(list, num) {
+		log.Printf("ℹ️ Número %s já está autorizado. Nenhuma alteração.", num)
 		return nil
 	}
 
@@ -69,7 +78,7 @@ func AddAuthorized(num string) error {
 // RemoveAuthorized remove um número, se não for fixo e não for o próprio solicitante
 func RemoveAuthorized(requester, target string) error {
 	if requester == target {
-		log.Printf("⚠️ Tentativa de autoremoção por %s — ignorado.", requester)
+		log.Printf("⚠️ %s tentou se remover da lista — operação ignorada.", requester)
 		return nil
 	}
 	if IsFixed(target) {
@@ -83,6 +92,12 @@ func RemoveAuthorized(requester, target string) error {
 		if n != target {
 			updated = append(updated, n)
 		}
+	}
+
+	if len(updated) == len(list) {
+		log.Printf("ℹ️ Número %s não estava na lista. Nenhuma alteração.", target)
+	} else {
+		log.Printf("🗑️ Número %s removido da lista de autorizados.", target)
 	}
 
 	return SaveAuthorizedNumbers(updated)
@@ -138,4 +153,8 @@ func contains(list []string, value string) bool {
 		}
 	}
 	return false
+}
+
+func isValidPhone(num string) bool {
+	return phoneRegex.MatchString(num)
 }

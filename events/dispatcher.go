@@ -6,7 +6,8 @@ import (
 
 	"github.com/faysk/whatsapp-bot/handlers"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
+	waEvents "go.mau.fi/whatsmeow/types/events"
+	waTypes "go.mau.fi/whatsmeow/types"
 )
 
 // Listen registra os listeners de eventos no cliente WhatsApp
@@ -14,21 +15,22 @@ func Listen(ctx context.Context, client *whatsmeow.Client) {
 	client.AddEventHandler(func(evt interface{}) {
 		switch msg := evt.(type) {
 
-		case *events.Message:
+		case *waEvents.Message:
+			// Ignora mensagens enviadas pelo próprio bot
 			if msg.Info.MessageSource.IsFromMe {
-				return // ignora mensagens enviadas pelo próprio bot
+				return
 			}
 
 			text := extractMessageText(msg)
 			if text == "" {
-				log.Printf("📭 Ignorando mensagem vazia ou não suportada.")
+				log.Printf("📭 Ignorando mensagem vazia ou não suportada de %s", msg.Info.Sender.User)
 				return
 			}
 
 			log.Printf("📨 [%s] %s", msg.Info.Sender.User, text)
 			handlers.HandleCommand(ctx, client, msg.Info.Chat, text, msg)
 
-		// Futuro: adicionar outros tipos de evento (ex: presence, status)
+		// Futuro: adicionar suporte a eventos como presença, status, etc.
 		default:
 			// log.Printf("📡 Evento ignorado: %T", evt)
 		}
@@ -36,19 +38,25 @@ func Listen(ctx context.Context, client *whatsmeow.Client) {
 }
 
 // extractMessageText extrai o conteúdo textual da mensagem recebida
-func extractMessageText(msg *events.Message) string {
+func extractMessageText(msg *waEvents.Message) string {
 	if msg.Message == nil {
 		return ""
 	}
 
-	// Tipos comuns de texto
-	if msg.Message.Conversation != nil {
+	switch {
+	case msg.Message.Conversation != nil:
 		return *msg.Message.Conversation
-	}
-	if msg.Message.ExtendedTextMessage != nil {
-		return *msg.Message.ExtendedTextMessage.Text
-	}
 
-	// Outros tipos (opcional: áudio, imagem com legenda, etc.)
-	return ""
+	case msg.Message.ExtendedTextMessage != nil:
+		return *msg.Message.ExtendedTextMessage.Text
+
+	case msg.Message.ImageMessage != nil && msg.Message.ImageMessage.Caption != nil:
+		return *msg.Message.ImageMessage.Caption
+
+	case msg.Message.VideoMessage != nil && msg.Message.VideoMessage.Caption != nil:
+		return *msg.Message.VideoMessage.Caption
+
+	default:
+		return ""
+	}
 }

@@ -8,15 +8,19 @@
 ########################################
 # 🔐 Banco de dados e sessões
 ########################################
-session.db
-session.db-journal
+# Removido SQLite
+db.env
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
 
 ########################################
-# 🔊 Mídias geradas (áudios, etc)
+# 🔊 Mídias geradas (áudios, QR Codes, etc)
 ########################################
 media/
+*.png
+/tmp/
 
 ########################################
 # 🔨 Binários compilados e builds
@@ -50,12 +54,22 @@ pkg/
 Thumbs.db
 
 ########################################
-# 🐍 Scripts Python auxiliares (ex: edge-tts)
+# 🐍 Scripts Python auxiliares (ex: edge-tts, geração externa)
 ########################################
 scripts/__pycache__/
+__pycache__/
+*.pyc
 
 ########################################
 # 📦 Dependências de outros ambientes
 ########################################
 node_modules/
 venv/
+
+########################################
+# 📁 Arquivos de configuração locais
+########################################
+*.iml
+*.code-workspace
+*.tmp
+*.bak
