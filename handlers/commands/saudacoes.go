@@ -4,9 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"regexp"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/faysk/whatsapp-bot/services"
 	"go.mau.fi/whatsmeow"
@@ -54,13 +52,13 @@ var saudacoes = map[string][]string{
 }
 
 var aliases = map[string][]string{
-	"bom dia":    {"bom dia", "b dia", "bdia"},
-	"boa tarde":  {"boa tarde", "boa tardi", "boa trde"},
-	"boa noite":  {"boa noite", "boanoite", "boa noti"},
-	"oi":         {"oi", "e aí", "eai", "iae", "oii"},
-	"olá":        {"olá", "ola", "olaaa"},
-	"salve":      {"salve", "salvee", "salvee!"},
-	"opa":        {"opa", "opaaa", "oopaa"},
+	"bom dia":   {"bom dia", "b dia", "bdia"},
+	"boa tarde": {"boa tarde", "boa tardi", "boa trde"},
+	"boa noite": {"boa noite", "boanoite", "boa noti"},
+	"oi":        {"oi", "e aí", "eai", "iae", "oii"},
+	"olá":       {"olá", "ola", "olaaa"},
+	"salve":     {"salve", "salvee", "salvee!"},
+	"opa":       {"opa", "opaaa", "oopaa"},
 }
 
 // DetectSaudacao tenta identificar e responder a uma saudação
@@ -69,8 +67,8 @@ func DetectSaudacao(ctx context.Context, client *whatsmeow.Client, chat waTypes.
 	words := tokenize(text)
 	rand.Seed(time.Now().UnixNano())
 
-	for categoria, variações := range aliases {
-		for _, termo := range variações {
+	for categoria, variacoes := range aliases {
+		for _, termo := range variacoes {
 			for _, palavra := range words {
 				if palavra == termo {
 					respostas := saudacoes[categoria]
@@ -84,4 +82,11 @@ func DetectSaudacao(ctx context.Context, client *whatsmeow.Client, chat waTypes.
 		}
 	}
 
-	r
+	return false
+}
+
+var wordRegex = regexp.MustCompile(`[\p{L}\p{N}]+`)
+
+func tokenize(input string) []string {
+	return wordRegex.FindAllString(input, -1)
+}

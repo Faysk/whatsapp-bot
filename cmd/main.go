@@ -14,6 +14,7 @@ import (
 	"github.com/faysk/whatsapp-bot/services"
 	"github.com/faysk/whatsapp-bot/store"
 	"github.com/faysk/whatsapp-bot/utils"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -56,7 +57,7 @@ func main() {
 	}
 }
 
-func startBot(ctx context.Context) (*services.WhatsAppClient, error) {
+func startBot(ctx context.Context) (*whatsmeow.Client, error) {
 	config.Load()
 
 	dynamic := store.LoadAuthorizedNumbers()

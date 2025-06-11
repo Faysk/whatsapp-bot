@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	cryptoPanicToken     = "444829389373d26117c89452f7bb83efbbc4524d"
-	cryptoPanicBaseURL   = "https://cryptopanic.com/news/"
-	maxItemsPerSection   = 10
-	requestTimeout       = 10 * time.Second
+	cryptoPanicToken   = "444829389373d26117c89452f7bb83efbbc4524d"
+	cryptoPanicBaseURL = "https://cryptopanic.com/news/"
+	maxItemsPerSection = 10
+	newsRequestTimeout = 10 * time.Second
 )
 
-var client = &http.Client{Timeout: requestTimeout}
+var newsClient = &http.Client{Timeout: newsRequestTimeout}
 
 type panicPost struct {
 	Title string `json:"title"`
@@ -31,7 +31,7 @@ type panicResponse struct {
 }
 
 func fetchCryptoPanic(endpoint string) ([]panicPost, error) {
-	resp, err := client.Get(endpoint)
+	resp, err := newsClient.Get(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao acessar CryptoPanic: %w", err)
 	}
