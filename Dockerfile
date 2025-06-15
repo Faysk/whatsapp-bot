@@ -5,20 +5,22 @@
 ########################################
 ARG GO_VERSION=1.24-alpine
 FROM golang:${GO_VERSION} AS builder
+
+# Usa proxy oficial Go com fallback
 ENV GOPROXY=https://proxy.golang.org,direct
 
-WORKDIR /app
-
-# Configura compilação estática para Linux amd64
+# Compilação estática para Linux amd64
 ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64
 
-# Cache de dependências
+WORKDIR /app
+
+# Etapa de cache de dependências
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copia todo o projeto e compila binário
+# Copia o restante do projeto e compila binário principal
 COPY . ./
 RUN go build -ldflags="-s -w" -o bot ./cmd
 
@@ -32,21 +34,21 @@ LABEL org.opencontainers.image.source="https://github.com/Faysk/whatsapp-bot" \
       org.opencontainers.image.maintainer="Renan Silva <faysk.nan@gmail.com>" \
       org.opencontainers.image.version="v1.0.0"
 
-# Instala apenas o necessário
-RUN apk add --no-cache ca-certificates tzdata && rm -rf /var/cache/apk/*
+# Instala certificados e timezone
+RUN apk add --no-cache ca-certificates tzdata
 
-# Cria usuário não-root
+# Cria usuário não-root seguro
 RUN addgroup -S app && adduser -S app -G app
 USER app
 
 WORKDIR /app
 
-# Copia artefatos do build
-COPY --from=builder --chown=app:app /app/bot ./
-COPY --from=builder --chown=app:app /app/authorized.json ./
-COPY --from=builder --chown=app:app /app/crypto_records.json ./
+# Copia binário e arquivos necessários do build
+COPY --from=builder --chown=app:app /app/bot ./bot
+COPY --from=builder --chown=app:app /app/authorized.json ./authorized.json
+COPY --from=builder --chown=app:app /app/crypto_records.json ./crypto_records.json
 
-# Variáveis de ambiente padrão
+# Variáveis de ambiente padrão (podem ser sobrescritas externamente)
 ENV DB_DRIVER=postgres \
     DB_PATH=postgres://bot_user:bot_senha@db:5432/whatsapp_bot?sslmode=disable&binary_parameters=true \
     BOT_NAME=FayskBot \
@@ -54,9 +56,9 @@ ENV DB_DRIVER=postgres \
     LANG=pt-BR \
     TZ=America/Sao_Paulo
 
-# Healthcheck simples via processo do bot
+# Healthcheck simples com verificação do processo
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD pgrep -f '/app/bot' > /dev/null || exit 1
 
-# Comando de inicialização
+# Comando principal
 ENTRYPOINT ["./bot"]
