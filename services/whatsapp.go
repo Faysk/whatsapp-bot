@@ -13,7 +13,7 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	_ "github.com/lib/pq" // Driver PostgreSQL
+	_ "github.com/lib/pq"
 )
 
 // InitWhatsAppClient inicializa o cliente do WhatsApp com sessão persistente via PostgreSQL
@@ -27,19 +27,29 @@ func InitWhatsAppClient(ctx context.Context) (*whatsmeow.Client, error) {
 		return nil, fmt.Errorf("❌ Driver de banco de dados não suportado: %s", driver)
 	}
 
+	// 🔌 Conexão com PostgreSQL
 	db, err := store.ConnectPostgres(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("❌ Erro ao conectar ao PostgreSQL: %w", err)
 	}
 
+	// 📦 Inicializa container de sessão
 	container := sqlstore.NewWithDB(db, "postgres", logger)
 
+	// 🛠️ Executa migrações obrigatórias do WhatsMeow
+	if err := sqlstore.MigrateDatabase(container, "postgres"); err != nil {
+		return nil, fmt.Errorf("❌ Falha ao aplicar migrações WhatsMeow: %w", err)
+	}
+	log.Println("🧱 Tabelas do WhatsMeow criadas/verificadas com sucesso.")
+
+	// 🗃️ Obtém dispositivo ou cria novo
 	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		log.Println("⚠️ Nenhuma sessão ativa encontrada. Criando novo dispositivo...")
 		deviceStore = container.NewDevice()
 	}
 
+	// 📲 Cria cliente WhatsApp com sessão persistente
 	client := whatsmeow.NewClient(deviceStore, logger)
 	log.Printf("✅ Cliente WhatsApp [%s] pronto para conectar.", config.AppConfig.BotName)
 	return client, nil

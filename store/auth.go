@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -12,9 +13,10 @@ import (
 )
 
 const authorizedPath = "authorized.json"
+
 var phoneRegex = regexp.MustCompile(`^55\d{10,11}$`)
 
-// LoadAuthorizedNumbers carrega os números do JSON e mescla com os fixos do .env
+// LoadAuthorizedNumbers carrega e une números fixos e dinâmicos (com validação)
 func LoadAuthorizedNumbers() []string {
 	data, err := os.ReadFile(authorizedPath)
 	if err != nil {
@@ -25,49 +27,48 @@ func LoadAuthorizedNumbers() []string {
 
 	var dynamic []string
 	if err := json.Unmarshal(data, &dynamic); err != nil {
-		log.Printf("❌ Erro ao ler %s: %v", authorizedPath, err)
+		log.Printf("❌ Erro ao decodificar %s: %v. Substituindo por lista vazia.", authorizedPath, err)
+		_ = SaveAuthorizedNumbers([]string{})
 		return mergeWithFixed([]string{})
 	}
 
 	return mergeWithFixed(dynamic)
 }
 
-// SaveAuthorizedNumbers salva apenas os números mutáveis (excluindo os fixos)
+// SaveAuthorizedNumbers salva apenas os números mutáveis (exclui fixos)
 func SaveAuthorizedNumbers(all []string) error {
 	mutables := filterMutable(all)
 	mutables = sanitize(mutables)
 
 	data, err := json.MarshalIndent(mutables, "", "  ")
 	if err != nil {
-		log.Printf("❌ Erro ao gerar JSON: %v", err)
-		return err
+		return fmt.Errorf("❌ Erro ao gerar JSON: %w", err)
 	}
 
 	if err := os.WriteFile(authorizedPath, data, 0644); err != nil {
-		log.Printf("❌ Erro ao salvar %s: %v", authorizedPath, err)
-		return err
+		return fmt.Errorf("❌ Erro ao salvar %s: %w", authorizedPath, err)
 	}
 
-	log.Printf("✅ Lista salva com sucesso (%d número(s) mutáveis).", len(mutables))
+	log.Printf("✅ Lista de autorizados salva com %d número(s) mutáveis.", len(mutables))
 	return nil
 }
 
-// AddAuthorized adiciona um novo número à lista (se não for fixo ou duplicado)
+// AddAuthorized adiciona um número à lista, se válido, não fixo e não duplicado
 func AddAuthorized(num string) error {
 	num = strings.TrimSpace(num)
-	if num == "" || IsFixed(num) {
-		log.Printf("⚠️ Número %s ignorado (vazio ou fixo).", num)
-		return nil
-	}
 
-	if !isValidPhone(num) {
-		log.Printf("⚠️ Número inválido ignorado: %s", num)
-		return nil
+	switch {
+	case num == "":
+		return fmt.Errorf("⚠️ Número vazio ignorado.")
+	case IsFixed(num):
+		return fmt.Errorf("⚠️ Número %s é fixo, não pode ser adicionado via comando.", num)
+	case !isValidPhone(num):
+		return fmt.Errorf("⚠️ Número inválido: %s", num)
 	}
 
 	list := LoadAuthorizedNumbers()
 	if contains(list, num) {
-		log.Printf("ℹ️ Número %s já está autorizado. Nenhuma alteração.", num)
+		log.Printf("ℹ️ Número %s já estava autorizado.", num)
 		return nil
 	}
 
@@ -75,15 +76,13 @@ func AddAuthorized(num string) error {
 	return SaveAuthorizedNumbers(list)
 }
 
-// RemoveAuthorized remove um número, se não for fixo e não for o próprio solicitante
+// RemoveAuthorized remove um número, se não for fixo nem o próprio solicitante
 func RemoveAuthorized(requester, target string) error {
-	if requester == target {
-		log.Printf("⚠️ %s tentou se remover da lista — operação ignorada.", requester)
-		return nil
-	}
-	if IsFixed(target) {
-		log.Printf("⚠️ Tentativa de remover número fixo %s — bloqueado.", target)
-		return nil
+	switch {
+	case requester == target:
+		return fmt.Errorf("⚠️ %s tentou se auto-remover. Operação bloqueada.", requester)
+	case IsFixed(target):
+		return fmt.Errorf("⚠️ Tentativa de remover número fixo %s foi bloqueada.", target)
 	}
 
 	list := LoadAuthorizedNumbers()
@@ -95,20 +94,22 @@ func RemoveAuthorized(requester, target string) error {
 	}
 
 	if len(updated) == len(list) {
-		log.Printf("ℹ️ Número %s não estava na lista. Nenhuma alteração.", target)
+		log.Printf("ℹ️ Número %s não estava na lista. Nenhuma alteração feita.", target)
 	} else {
-		log.Printf("🗑️ Número %s removido da lista de autorizados.", target)
+		log.Printf("🗑️ Número %s removido com sucesso.", target)
 	}
 
 	return SaveAuthorizedNumbers(updated)
 }
 
-// IsFixed verifica se o número está entre os fixos do .env
+// IsFixed verifica se o número é fixo e não pode ser removido
 func IsFixed(num string) bool {
 	return contains(config.AppConfig.FixedAuthorizedEnv, num)
 }
 
-// === Utilitários ===
+//
+// === 🧠 Utilitários Internos ===
+//
 
 func mergeWithFixed(mutables []string) []string {
 	all := append([]string{}, config.AppConfig.FixedAuthorizedEnv...)
@@ -123,7 +124,7 @@ func mergeWithFixed(mutables []string) []string {
 func filterMutable(all []string) []string {
 	var result []string
 	for _, n := range all {
-		if !contains(config.AppConfig.FixedAuthorizedEnv, n) {
+		if !IsFixed(n) {
 			result = append(result, n)
 		}
 	}
@@ -134,7 +135,7 @@ func sanitize(list []string) []string {
 	unique := map[string]struct{}{}
 	for _, n := range list {
 		n = strings.TrimSpace(n)
-		if n != "" {
+		if isValidPhone(n) {
 			unique[n] = struct{}{}
 		}
 	}
